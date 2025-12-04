@@ -1,57 +1,54 @@
+#include <stdint.h>
 #include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <fcntl.h>
-#include <sys/stat.h>
-
-#define BUFFER_SIZE 1024
+#include <stdlib.h>
+#include <stdio.h>
 
 int is_vowel(char c) {
     char vowels[] = "aeiouyAEIOUY";
-    for (int i = 0; vowels[i] != '\0'; i++) {
-        if (c == vowels[i]) {
-            return 1;
-        }
+    for (int i = 0; vowels[i]; i++) {
+        if (c == vowels[i]) return 1;
     }
     return 0;
 }
 
-int main(int argc, char *argv[]) {
+void remove_vowels(const char* input, ssize_t len, char* output, ssize_t* out_len) {
+    ssize_t j = 0;
+    for (ssize_t i = 0; i < len; i++) {
+        if (!is_vowel(input[i])) {
+            output[j++] = input[i];
+        }
+    }
+    *out_len = j;
+}
+
+int main(int argc, char** argv) {
     if (argc != 2) {
-        write(STDERR_FILENO, "Usage: client <filename>\n", 25);
-        exit(1);
+        const char msg[] = "error: expected filename argument\n";
+        write(STDERR_FILENO, msg, sizeof(msg));
+        exit(EXIT_FAILURE);
     }
 
-    int fd = open(argv[1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (fd == -1) {
-        write(STDERR_FILENO, "File open error\n", 16);
-        exit(1);
+    int file = open(argv[1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (file == -1) {
+        const char msg[] = "error: failed to open file\n";
+        write(STDERR_FILENO, msg, sizeof(msg));
+        exit(EXIT_FAILURE);
     }
 
-    char buffer[BUFFER_SIZE];
-    char processed[BUFFER_SIZE];
-    ssize_t bytes_read;
+    char input_buf[4096];
+    char output_buf[4096];
+    ssize_t bytes, out_len;
 
-    while ((bytes_read = read(STDIN_FILENO, buffer, BUFFER_SIZE)) > 0) {
-        int j = 0;
-
-        for (int i = 0; i < bytes_read; i++) {
-            if (!is_vowel(buffer[i])) {
-                processed[j++] = buffer[i];
-            }
-        }
+    while ((bytes = read(STDIN_FILENO, input_buf, sizeof(input_buf))) > 0) {
+        remove_vowels(input_buf, bytes, output_buf, &out_len);
         
-        if (write(fd, processed, j) == -1) {
-            write(STDERR_FILENO, "File write error\n", 17);
-            break;
+        if (out_len > 0) {
+            write(STDOUT_FILENO, output_buf, out_len);
+            write(file, output_buf, out_len);
         }
-        
-        write(STDOUT_FILENO, "Processed: ", 11);
-        write(STDOUT_FILENO, processed, j);
-        write(STDOUT_FILENO, "\n", 1);
     }
 
-    close(fd);
+    close(file);
     return 0;
 }
